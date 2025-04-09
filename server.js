@@ -53,8 +53,8 @@ app.post(
         // Encriptar la contraseña
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        // Guardar usuario en la "base de datos"
-        const newUser = { id: users.length + 1, name, email, password: hashedPassword };
+        // Guardar usuario en la "base de datos" con estado "activo" por defecto
+        const newUser = { id: users.length + 1, name, email, password: hashedPassword, status: 'activo' };
         users.push(newUser);
 
         res.status(201).json({ message: "Usuario registrado con éxito" });
@@ -69,6 +69,11 @@ app.post("/api/auth/login", async (req, res) => {
     // Buscamos el usuario en la base de datos por su email
     const user = users.find(user => user.email === email);
     if (!user) return res.status(400).json({ message: "Usuario no encontrado" });
+
+    // Verificamos el estado del usuario
+    if (user.status !== 'activo') {
+        return res.status(400).json({ message: "Cuenta bloqueada o no activa" });
+    }
 
     // Comparamos la contraseña ingresada con la almacenada en la base de datos
     const isMatch = await bcrypt.compare(password, user.password);
@@ -107,6 +112,28 @@ app.get("/api/auth/me", (req, res) => {
         // En caso de error, informamos que el token es inválido o ha expirado
         res.status(401).json({ message: "Token inválido o expirado" });
     }
+});
+
+// Cambiar el estado de un usuario (bloquearlo)
+app.put("/api/users/:id/status", (req, res) => {
+    const { id } = req.params;
+    const { status } = req.body; // Esperamos que el cuerpo contenga el nuevo estado
+
+    // Buscamos al usuario en la base de datos
+    const user = users.find(user => user.id == id);
+    if (!user) {
+        return res.status(404).json({ message: "Usuario no encontrado" });
+    }
+
+    // Validamos que el estado sea uno válido
+    if (!['activo', 'bloqueado', 'pendiente'].includes(status)) {
+        return res.status(400).json({ message: "Estado no válido" });
+    }
+
+    // Actualizamos el estado del usuario
+    user.status = status;
+
+    res.json({ message: `Estado del usuario actualizado a ${status}` });
 });
 
 // Iniciar el servidor en el puerto definido
